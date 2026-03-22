@@ -44,33 +44,31 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-bevy-gym = "*"
+bevy-gym = "0.1"
 bevy = { version = "0.18", default-features = false, features = ["default_app", "multi_threaded"] }
 ```
 
-### Headless training with 16 parallel environments
+### Headless training with 4 parallel environments
 
 ```rust
 use bevy::prelude::*;
-use bevy_gym::{BevyGymPlugin, ActionRequestEvent};
-use bevy_gym::components::PendingAction;
+use bevy::app::ScheduleRunnerPlugin;
+use bevy_gym::{BevyGymPlugin, ActionRequestEvent, GymSet};
+use bevy_gym::components::{CurrentObservation, PendingAction};
 
 App::new()
-    .add_plugins(MinimalPlugins)
-    .add_plugins(
-        BevyGymPlugin::new(|i| CartPoleEnv::new(i as u64), 16)
-            .headless()
-    )
-    .add_systems(FixedUpdate, random_policy_system)
+    .add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(Duration::ZERO)))
+    .add_plugins(BevyGymPlugin::new(|_| MyEnv::new(), 4).headless())
+    .add_systems(FixedUpdate, policy_system.after(GymSet::ManualReset))
     .run();
 
-fn random_policy_system(
+fn policy_system(
     mut requests: MessageReader<ActionRequestEvent>,
-    mut query: Query<(&EnvId, &mut PendingAction<CartPoleEnv>)>,
+    mut query: Query<(&CurrentObservation<MyEnv>, &mut PendingAction<MyEnv>)>,
 ) {
     for req in requests.read() {
-        if let Some((_, mut pending)) = query.iter_mut().find(|(id, _)| id.0 == req.env_id) {
-            pending.action = Some(rand::random::<usize>() % 2);
+        if let Ok((obs, mut pending)) = query.get_mut(req.entity) {
+            pending.action = Some(my_policy(&obs.observation));
         }
     }
 }
@@ -81,13 +79,35 @@ fn random_policy_system(
 ```rust
 fn collect_experience(
     mut events: MessageReader<ExperienceEvent<Vec<f32>, usize>>,
-    mut buffer: ResMut<MyReplayBuffer>,
+    mut dqn: NonSendMut<DqnResource>,
 ) {
     for event in events.read() {
-        buffer.push(event.experience.clone());
+        dqn.agent.observe(event.experience.clone());
     }
 }
 ```
+
+### Live training statistics
+
+Add `GymStatsPlugin` to get a `GymStats` resource tracking rolling episode stats across all envs:
+
+```rust
+App::new()
+    .add_plugins(BevyGymPlugin::new(env_factory, 4).headless())
+    .add_plugins(GymStatsPlugin::new())           // add after BevyGymPlugin
+    .add_systems(FixedUpdate, log_stats.after(GymSet::ManualReset))
+    .run();
+
+fn log_stats(stats: Res<GymStats>) {
+    let g = stats.global();
+    if g.episode_count() % 50 == 0 && g.episode_count() > 0 {
+        println!("ep {:>5}  reward mean/max: {:.1}/{:.1}  steps/sec: {:.0}",
+                 g.episode_count(), g.mean_reward(), g.max_reward(), g.steps_per_sec());
+    }
+}
+```
+
+`GymStats` also exposes per-environment stats via `.env(id)`.
 
 ### Manual environment resets
 
@@ -103,6 +123,9 @@ commands.entity(env_entity).insert(ResetRequested { seed: Some(42) });
 BevyGymPlugin::new(factory, num_envs)  // factory: Fn(usize) -> E
     .with_tick_rate(120.0)             // fixed tick rate in Hz (default: 60)
     .headless()                        // uncapped, no window
+
+GymStatsPlugin::new()
+    .with_window(200)                  // rolling window size (default: 100)
 ```
 
 ## Message types
@@ -121,8 +144,8 @@ All RL systems run in `FixedUpdate` in the `GymSet` order:
 GymSet::Step → GymSet::AutoReset → GymSet::ManualReset
 ```
 
-Policy systems can be added before `GymSet::Step` (to write actions) or after
-`GymSet::ManualReset` (for post-step processing).
+User policy and logging systems should run **after** `GymSet::ManualReset` to
+ensure they see a fully consistent state for the current tick.
 
 ## Feature flags
 
@@ -130,6 +153,19 @@ Policy systems can be added before `GymSet::Step` (to write actions) or after
 |---|---|
 | *(default)* | Headless ECS only — no window, no rendering |
 | `render` | Adds `bevy_render`, `bevy_winit`, `bevy_core_pipeline`, `bevy_asset`, `bevy_sprite` |
+
+## CartPole example
+
+The included CartPole example demonstrates the full stack: 4 parallel environments,
+a DQN agent from `ember-rl`, `GymStatsPlugin` for live stats, and checkpoint save/load.
+
+```
+# Train (saves checkpoint to bevy_cartpole_dqn.mpk on completion)
+cargo run --example cartpole --release
+
+# Eval from a saved checkpoint
+cargo run --example cartpole --release -- --eval bevy_cartpole_dqn
+```
 
 ## Development
 
