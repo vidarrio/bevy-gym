@@ -1,6 +1,6 @@
 [package]
 name = "bevy-gym"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Bevy ECS plugin for parallelised RL environment simulation"
 license = "MIT OR Apache-2.0"
@@ -20,7 +20,7 @@ render = [
 ]
 
 [dependencies]
-rl-traits = { version = "0.2", path = "../rl-traits" }
+rl-traits = "0.2"
 rand = "0.8"
 
 # Minimal Bevy — only what's needed for ECS + scheduling.
@@ -32,3 +32,7 @@ features = [
     "default_app",
     "multi_threaded",
 ]
+
+[dev-dependencies]
+ember-rl = { version = "0.2", features = ["envs"] }
+burn = { version = "0.20.1", features = ["ndarray", "autodiff"] }

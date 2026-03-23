@@ -26,6 +26,7 @@ use crate::events::{ActionRequestEvent, EpisodeEndEvent, ExperienceEvent};
 /// Solution: collect step results into a `Mutex<Vec>` in parallel,
 /// then drain and fire events serially. The serial phase is O(n) over
 /// only the envs that actually stepped — the expensive part ran in parallel.
+#[allow(clippy::type_complexity)]
 pub fn step_system<E: Environment + Send + Sync + 'static>(
     mut query: Query<(
         Entity,

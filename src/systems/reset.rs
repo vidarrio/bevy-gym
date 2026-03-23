@@ -13,6 +13,7 @@ use crate::events::{ActionRequestEvent, EpisodeEndEvent};
 /// This runs in `FixedUpdate`, ordered *after* `step_system`. The reset
 /// happens within the same tick that the episode ended, so there is never
 /// a tick where an environment sits idle between episodes.
+#[allow(clippy::type_complexity)]
 pub fn auto_reset_system<E: Environment + Send + Sync + 'static>(
     mut episode_end_events: MessageReader<EpisodeEndEvent>,
     mut query: Query<(
@@ -61,6 +62,7 @@ pub struct ResetRequested {
 }
 
 /// Handles manually-requested resets via the `ResetRequested` marker component.
+#[allow(clippy::type_complexity)]
 pub fn manual_reset_system<E: Environment + Send + Sync + 'static>(
     mut commands: Commands,
     mut query: Query<(

@@ -52,6 +52,7 @@
 pub mod components;
 pub mod events;
 pub mod plugin;
+pub mod stats;
 pub mod systems;
 
 pub use components::{
@@ -59,4 +60,5 @@ pub use components::{
 };
 pub use events::{ActionRequestEvent, EpisodeEndEvent, ExperienceEvent};
 pub use plugin::{spawn_environments, BevyGymPlugin, GymConfig, GymSet};
+pub use stats::{GymStats, GymStatsPlugin, StatsView};
 pub use systems::reset::ResetRequested;

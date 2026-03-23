@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use bevy::app::ScheduleRunnerPlugin;
 use bevy::prelude::*;
 use bevy::time::Fixed;
 use rl_traits::Environment;
@@ -117,12 +116,6 @@ impl<E: Environment + Send + Sync + 'static> BevyGymPlugin<E> {
 
 impl<E: Environment + Send + Sync + 'static> Plugin for BevyGymPlugin<E> {
     fn build(&self, app: &mut App) {
-        if self.headless {
-            app.add_plugins(ScheduleRunnerPlugin::run_loop(
-                std::time::Duration::ZERO,
-            ));
-        }
-
         if let Some(hz) = self.tick_rate {
             app.insert_resource(Time::<Fixed>::from_hz(hz));
         }
