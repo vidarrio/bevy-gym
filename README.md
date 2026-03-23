@@ -182,20 +182,58 @@ ensure they see a fully consistent state for the current tick.
 | Feature | Description |
 |---|---|
 | *(default)* | Headless ECS only — no window, no rendering |
-| `render` | Adds `bevy_render`, `bevy_winit`, `bevy_core_pipeline`, `bevy_asset`, `bevy_sprite` |
+| `render` | Adds `bevy_render`, `bevy_winit`, `bevy_core_pipeline`, `bevy_asset`, `bevy_sprite`, `bevy_sprite_render` |
+
+## Optional rendering
+
+The `render` feature exposes the `GymRender` trait and `GymRenderPlugin`. Implement
+`GymRender` for your environment to get live 2D visualisation with no changes to the
+rest of your setup:
+
+```rust
+#[cfg(feature = "render")]
+impl GymRender for MyEnv {
+    type Visuals = MyVisuals;  // Component holding spawned mesh Entity handles
+
+    fn setup_visuals(entity: Entity, env_id: usize, ctx: &mut SpawnCtx) {
+        // spawn Mesh2d + MeshMaterial2d children, insert MyVisuals onto entity
+    }
+
+    fn sync_visuals(obs: &Self::Observation, visuals: &MyVisuals, transforms: &mut Query<&mut Transform>) {
+        // reposition mesh entities from the latest observation
+    }
+}
+```
+
+Then add `GymRenderPlugin` alongside a camera and `DefaultPlugins`:
+
+```rust
+app.add_plugins(DefaultPlugins)
+   .add_plugins(GymRenderPlugin::<MyEnv>::new())
+   .add_systems(Startup, |mut commands: Commands| { commands.spawn(Camera2d); });
+```
 
 ## CartPole example
 
 The included CartPole example demonstrates the full stack: 4 parallel environments,
 a DQN agent from `ember-rl` coordinated via `TrainingSession`, `GymStatsPlugin` for
-live stats, and automatic checkpointing.
+live stats, automatic checkpointing, and optional live 2D rendering.
 
 ```
-# Train (saves checkpoints to runs/bevy_cartpole/v1/<timestamp>/)
+# Train headless at maximum speed
 cargo run --example cartpole --release
 
-# Eval from a saved checkpoint
-cargo run --example cartpole --release -- --eval bevy_cartpole_dqn
+# Train with live rendering
+cargo run --example cartpole --features render --release -- --render
+
+# Train with live rendering at half speed
+cargo run --example cartpole --features render --release -- --render --speed 0.5
+
+# Evaluate a saved checkpoint (headless)
+cargo run --example cartpole --release -- --eval runs/bevy_cartpole/v1
+
+# Evaluate with live rendering
+cargo run --example cartpole --features render --release -- --eval runs/bevy_cartpole/v1 --render
 ```
 
 ## Development

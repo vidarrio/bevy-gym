@@ -52,6 +52,8 @@
 pub mod components;
 pub mod events;
 pub mod plugin;
+#[cfg(feature = "render")]
+pub mod render;
 pub mod stats;
 pub mod systems;
 
