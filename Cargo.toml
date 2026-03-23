@@ -10,6 +10,9 @@ categories = ["game-engines", "science"]
 
 [features]
 default = []
+# Linux windowing backends — one is required when building on Linux.
+x11 = ["bevy/x11"]
+wayland = ["bevy/wayland"]
 # Enable Bevy rendering support. Without this, bevy-gym is fully headless.
 render = [
     "bevy/bevy_core_pipeline",
