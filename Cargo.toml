@@ -1,12 +1,15 @@
 [package]
 name = "bevy-gym"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Bevy ECS plugin for parallelised RL environment simulation"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/vidarrio/bevy-gym"
 keywords = ["bevy", "gym", "ecs", "simulation", "rl"]
 categories = ["game-engines", "science"]
+
+[package.metadata.docs.rs]
+features = ["x11"]
 
 [features]
 default = []
