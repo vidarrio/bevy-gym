@@ -48,6 +48,7 @@ pub fn step_system<E: Environment + Send + Sync + 'static>(
         episode_status: EpisodeStatus,
         episode_reward: f64,
         episode_steps: usize,
+        episode_extras: std::collections::HashMap<String, f64>,
     }
 
     let outcomes: Mutex<Vec<StepOutcome<E::Observation, E::Action>>> =
@@ -74,6 +75,7 @@ pub fn step_system<E: Environment + Send + Sync + 'static>(
             // since par_iter_mut already has exclusive access to these components.
             let episode_reward = stats.episode_reward;
             let episode_steps = stats.episode_steps;
+            let episode_extras = if episode_done { env_comp.env.episode_extras() } else { std::collections::HashMap::new() };
 
             let experience = Experience::new(
                 prev_obs,
@@ -91,6 +93,7 @@ pub fn step_system<E: Environment + Send + Sync + 'static>(
                 episode_status: status,
                 episode_reward,
                 episode_steps,
+                episode_extras,
             });
         },
     );
@@ -107,6 +110,7 @@ pub fn step_system<E: Environment + Send + Sync + 'static>(
                 status: outcome.episode_status,
                 total_reward: outcome.episode_reward,
                 episode_steps: outcome.episode_steps,
+                extras: outcome.episode_extras,
             });
         }
 

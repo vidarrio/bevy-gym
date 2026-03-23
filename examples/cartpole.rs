@@ -1,16 +1,18 @@
 //! CartPole-v1 trained with DQN via bevy-gym.
 //!
 //! Demonstrates the full ecosystem integration:
-//!   rl-traits (env contract) → ember-rl (DQN) → bevy-gym (parallel ECS loop)
+//!   rl-traits (env contract) → ember-rl (DQN + TrainingSession) → bevy-gym (parallel ECS loop)
 //!
 //! Four CartPole environments step in parallel each ECS tick. A single DQN
 //! agent collects experience from all four, fills its replay buffer, and trains.
+//! `TrainingSession` handles automatic checkpointing, JSONL episode logging,
+//! and best-model saving — no manual save/checkpoint calls needed.
 //!
 //! # Train (default)
 //!
 //!   cargo run --example cartpole --release
 //!
-//! Saves the trained network to `bevy_cartpole_dqn.mpk` on completion.
+//! Saves checkpoints under `runs/bevy_cartpole/v1/<timestamp>/`.
 //!
 //! # Eval from a checkpoint
 //!
@@ -27,8 +29,9 @@ use ember_rl::{
     algorithms::dqn::{DqnAgent, DqnConfig, DqnPolicy},
     encoding::{UsizeActionMapper, VecEncoder},
     envs::cartpole::CartPoleEnv,
+    training::{TrainingRun, TrainingSession},
+    traits::ActMode,
 };
-use rand::{rngs::SmallRng, SeedableRng};
 
 use bevy_gym::{
     ActionRequestEvent, BevyGymPlugin, EpisodeEndEvent, ExperienceEvent, GymSet,
@@ -38,25 +41,13 @@ use bevy_gym::{
 
 type B = Autodiff<NdArray>;
 type InferB = NdArray;
+type Session = TrainingSession<CartPoleEnv, DqnAgent<CartPoleEnv, VecEncoder, UsizeActionMapper, B>>;
 
 const NUM_ENVS: usize = 4;
 const MAX_STEPS: usize = 200_000;
-const SAVE_PATH: &str = "bevy_cartpole_dqn";
+const CHECKPOINT_FREQ: usize = 25_000;
 
-// ── Resources ────────────────────────────────────────────────────────────────
-
-// DqnAgent/DqnPolicy contain Burn tensors (OnceCell internally) — not Sync.
-// Store as NonSend resources, pinned to the main thread.
-
-struct DqnResource {
-    agent: DqnAgent<CartPoleEnv, VecEncoder, UsizeActionMapper, B>,
-    rng: SmallRng,
-}
-
-struct DqnPolicyResource {
-    policy: DqnPolicy<CartPoleEnv, VecEncoder, UsizeActionMapper, InferB>,
-}
-
+// ── Config ────────────────────────────────────────────────────────────────────
 
 fn cartpole_config() -> DqnConfig {
     DqnConfig {
@@ -73,58 +64,70 @@ fn cartpole_config() -> DqnConfig {
     }
 }
 
+// ── Eval resource ─────────────────────────────────────────────────────────────
+
+// DqnPolicy contains Burn tensors — not Sync. Store as NonSend.
+struct DqnPolicyResource {
+    policy: DqnPolicy<CartPoleEnv, VecEncoder, UsizeActionMapper, InferB>,
+}
+
 // ── Train systems ─────────────────────────────────────────────────────────────
 
 fn policy_system(
     mut requests: MessageReader<ActionRequestEvent>,
     mut query: Query<(&CurrentObservation<CartPoleEnv>, &mut PendingAction<CartPoleEnv>)>,
-    mut dqn: NonSendMut<DqnResource>,
+    mut session: NonSendMut<Session>,
 ) {
     for req in requests.read() {
         if let Ok((obs, mut pending)) = query.get_mut(req.entity) {
-            let DqnResource { agent, rng } = &mut *dqn;
-            pending.action = Some(agent.act_epsilon_greedy(&obs.observation, rng));
+            pending.action = Some(session.act(&obs.observation, ActMode::Explore));
         }
     }
 }
 
 fn learn_system(
     mut events: MessageReader<ExperienceEvent<Vec<f32>, usize>>,
-    mut dqn: NonSendMut<DqnResource>,
+    mut session: NonSendMut<Session>,
 ) {
     for event in events.read() {
-        dqn.agent.observe(event.experience.clone());
+        session.observe(event.experience.clone());
     }
 }
 
 fn log_and_stop_system(
     mut events: MessageReader<EpisodeEndEvent>,
-    dqn: NonSend<DqnResource>,
+    mut session: NonSendMut<Session>,
     stats: Res<GymStats>,
     mut exit: MessageWriter<AppExit>,
     mut last_logged: Local<usize>,
 ) {
-    for _event in events.read() {}  // consume so GymStatsPlugin can tally
-
-    let g = stats.global();
-    let ep = g.episode_count();
-    if ep > 0 && ep % 50 == 0 && ep != *last_logged {
-        *last_logged = ep;
-        println!(
-            "ep {:>5}  reward mean/max: {:>6.1}/{:>6.1}  len: {:>5.1}  steps/sec: {:.0}  ε {:.3}",
-            ep, g.mean_reward(), g.max_reward(), g.mean_length(), g.steps_per_sec(),
-            dqn.agent.epsilon(),
+    for event in events.read() {
+        session.on_episode(
+            event.total_reward,
+            event.episode_steps,
+            event.status.clone(),
+            event.extras.clone(),
         );
     }
 
-    if dqn.agent.total_steps() >= MAX_STEPS {
-        dqn.agent.save(SAVE_PATH).expect("failed to save checkpoint");
-        println!("\nSaved checkpoint to {SAVE_PATH}.mpk");
-        println!("Final stats — {}", {
-            let g = stats.global();
-            format!("episodes: {}  mean reward: {:.1}  steps/sec: {:.0}",
-                    g.episode_count(), g.mean_reward(), g.steps_per_sec())
-        });
+    let ep = stats.total_episodes();
+    if ep > 0 && ep.is_multiple_of(50) && ep != *last_logged {
+        *last_logged = ep;
+        let g = stats.global();
+        println!(
+            "ep {:>5}  reward mean/max: {:>6.1}/{:>6.1}  len: {:>5.1}  steps/sec: {:.0}  ε {:.3}",
+            ep, g.mean_reward(), g.max_reward(), g.mean_length(), g.steps_per_sec(),
+            session.agent().epsilon(),
+        );
+    }
+
+    if session.total_steps() >= MAX_STEPS {
+        let g = stats.global();
+        println!("\nTraining complete. Checkpoints saved to run directory.");
+        println!(
+            "Final stats — episodes: {}  mean reward: {:.1}  steps/sec: {:.0}",
+            g.episode_count(), g.mean_reward(), g.steps_per_sec()
+        );
         exit.write(AppExit::Success);
     }
 }
@@ -156,7 +159,6 @@ fn eval_log_and_stop_system(
         );
     }
 
-    // Stop after 20 episodes across all envs
     if stats.total_episodes() >= 20 {
         let g = stats.global();
         println!("\nmean reward: {:.1}  mean length: {:.1}", g.mean_reward(), g.mean_length());
@@ -173,7 +175,7 @@ fn main() {
         let checkpoint = args
             .get(pos + 1)
             .map(|s| s.as_str())
-            .unwrap_or(SAVE_PATH);
+            .unwrap_or("bevy_cartpole_dqn");
         run_eval(checkpoint);
     } else {
         run_train();
@@ -192,16 +194,21 @@ fn run_train() {
         2,
     );
 
+    let run = TrainingRun::create("bevy_cartpole", "v1").expect("failed to create training run");
+    println!("Run directory: {}", run.dir().display());
+
+    let session: Session = TrainingSession::new(agent)
+        .with_run(run)
+        .with_checkpoint_freq(CHECKPOINT_FREQ)
+        .with_keep_checkpoints(3);
+
     App::new()
         .add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(
             std::time::Duration::ZERO,
         )))
         .add_plugins(BevyGymPlugin::new(|_| CartPoleEnv::new(), NUM_ENVS).headless())
         .add_plugins(GymStatsPlugin::new())
-        .insert_non_send_resource(DqnResource {
-            agent,
-            rng: SmallRng::seed_from_u64(3),
-        })
+        .insert_non_send_resource(session)
         .add_systems(
             FixedUpdate,
             (

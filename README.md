@@ -44,7 +44,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-bevy-gym = "0.1"
+bevy-gym = "0.3"
 bevy = { version = "0.18", default-features = false, features = ["default_app", "multi_threaded"] }
 ```
 
@@ -74,15 +74,45 @@ fn policy_system(
 }
 ```
 
-### Collecting experience for training
+### Integrating with ember-rl's `TrainingSession`
+
+Use `TrainingSession` from ember-rl as a NonSend resource to get automatic
+checkpointing, JSONL logging, and best-model saving with no manual save calls:
 
 ```rust
-fn collect_experience(
+use ember_rl::training::{TrainingSession, TrainingRun};
+use ember_rl::traits::ActMode;
+
+type Session = TrainingSession<MyEnv, DqnAgent<MyEnv, VecEncoder, UsizeActionMapper, B>>;
+
+fn policy_system(
+    mut requests: MessageReader<ActionRequestEvent>,
+    mut query: Query<(&CurrentObservation<MyEnv>, &mut PendingAction<MyEnv>)>,
+    mut session: NonSendMut<Session>,
+) {
+    for req in requests.read() {
+        if let Ok((obs, mut pending)) = query.get_mut(req.entity) {
+            pending.action = Some(session.act(&obs.observation, ActMode::Explore));
+        }
+    }
+}
+
+fn learn_system(
     mut events: MessageReader<ExperienceEvent<Vec<f32>, usize>>,
-    mut dqn: NonSendMut<DqnResource>,
+    mut session: NonSendMut<Session>,
 ) {
     for event in events.read() {
-        dqn.agent.observe(event.experience.clone());
+        session.observe(event.experience.clone());
+    }
+}
+
+fn on_episode_end(
+    mut events: MessageReader<EpisodeEndEvent>,
+    mut session: NonSendMut<Session>,
+) {
+    for event in events.read() {
+        // env_extras from EpisodeEndEvent are merged with agent extras automatically
+        session.on_episode(event.total_reward, event.episode_steps, event.status.clone(), event.extras.clone());
     }
 }
 ```
@@ -134,7 +164,7 @@ GymStatsPlugin::new()
 |---|---|---|
 | `ActionRequestEvent` | After every step and reset | `env_id`, `entity` |
 | `ExperienceEvent` | After every step | `env_id`, full `Experience` tuple |
-| `EpisodeEndEvent` | When an episode ends | `env_id`, `status`, `total_reward`, `episode_steps` |
+| `EpisodeEndEvent` | When an episode ends | `env_id`, `status`, `total_reward`, `episode_steps`, `extras` |
 
 ## System ordering
 
@@ -157,10 +187,11 @@ ensure they see a fully consistent state for the current tick.
 ## CartPole example
 
 The included CartPole example demonstrates the full stack: 4 parallel environments,
-a DQN agent from `ember-rl`, `GymStatsPlugin` for live stats, and checkpoint save/load.
+a DQN agent from `ember-rl` coordinated via `TrainingSession`, `GymStatsPlugin` for
+live stats, and automatic checkpointing.
 
 ```
-# Train (saves checkpoint to bevy_cartpole_dqn.mpk on completion)
+# Train (saves checkpoints to runs/bevy_cartpole/v1/<timestamp>/)
 cargo run --example cartpole --release
 
 # Eval from a saved checkpoint

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use rl_traits::{EpisodeStatus, Experience};
 
@@ -49,6 +51,12 @@ pub struct EpisodeEndEvent {
 
     /// Number of steps the episode lasted.
     pub episode_steps: usize,
+
+    /// Optional per-episode metrics from the environment (e.g. collisions, distance).
+    ///
+    /// Populated from [`rl_traits::Environment::episode_extras`] if the environment
+    /// overrides that method. Empty by default.
+    pub extras: HashMap<String, f64>,
 }
 
 /// Fired after each step (or reset) requesting the next action.
