@@ -102,12 +102,14 @@ fn log_and_stop_system(
     dqn: NonSend<DqnResource>,
     stats: Res<GymStats>,
     mut exit: MessageWriter<AppExit>,
+    mut last_logged: Local<usize>,
 ) {
     for _event in events.read() {}  // consume so GymStatsPlugin can tally
 
     let g = stats.global();
     let ep = g.episode_count();
-    if ep > 0 && ep % 50 == 0 {
+    if ep > 0 && ep % 50 == 0 && ep != *last_logged {
+        *last_logged = ep;
         println!(
             "ep {:>5}  reward mean/max: {:>6.1}/{:>6.1}  len: {:>5.1}  steps/sec: {:.0}  ε {:.3}",
             ep, g.mean_reward(), g.max_reward(), g.mean_length(), g.steps_per_sec(),
