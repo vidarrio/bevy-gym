@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "bevy-gym"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "bevy",
  "burn",
@@ -3379,9 +3379,7 @@ dependencies = [
 
 [[package]]
 name = "ember-rl"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3380224d1bde7f6575fab1f4f1f41fd561dc120acb0fe86d32a4610af4a9bb16"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "burn",

@@ -1,6 +1,6 @@
 [package]
 name = "bevy-gym"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 description = "Bevy ECS plugin for parallelised RL environment simulation"
 license = "MIT OR Apache-2.0"
@@ -42,5 +42,5 @@ features = [
 
 
 [dev-dependencies]
-ember-rl = { version = "0.3.3", features = ["envs"] }
+ember-rl = { version = "0.3.4", features = ["envs"] }
 burn = { version = "0.20.1", features = ["ndarray", "autodiff"] }

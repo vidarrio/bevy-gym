@@ -53,8 +53,7 @@ use rand::Rng;
 use rl_traits::{Environment, Policy, StepResult};
 
 use bevy_gym::{
-    ActionRequestEvent, BevyGymPlugin, EpisodeEndEvent, ExperienceEvent, GymSet, GymStats,
-    GymStatsPlugin,
+    ActionRequestEvent, BevyGymPlugin, EpisodeEndEvent, ExperienceEvent, GymSet,
     components::{CurrentObservation, PendingAction},
 };
 
@@ -265,7 +264,6 @@ fn learn_system(
 fn log_and_stop_system(
     mut events: MessageReader<EpisodeEndEvent>,
     mut session: NonSendMut<Session>,
-    stats: Res<GymStats>,
     mut last_logged: Local<usize>,
     mut done: Local<bool>,
 ) {
@@ -286,17 +284,15 @@ fn log_and_stop_system(
     let bucket = steps / LOG_INTERVAL;
     if bucket > *last_logged {
         *last_logged = bucket;
-        let ep = stats.total_episodes();
-        let g = stats.global();
-        let mean = g.mean_reward();
+        let summary = session.stats_summary();
+        let mean = summary.get("episode_reward").copied().unwrap_or(f64::NAN);
+        let len  = summary.get("episode_length").copied().unwrap_or(f64::NAN);
         println!(
-            "step {:>6}  ep {:>5}  reward mean/max: {:>6.1}/{:>6.1}  len: {:>5.1}  steps/sec: {:.0}  ε {:.3}",
+            "step {:>6}  reward mean: {:>6.1}  len: {:>5.1}  steps/sec: {:.0}  ε {:.3}",
             steps,
-            ep,
             mean,
-            g.max_reward(),
-            g.mean_length(),
-            g.steps_per_sec(),
+            len,
+            session.steps_per_sec(),
             session.agent().epsilon(),
         );
         session.maybe_save_best(mean);
@@ -304,13 +300,12 @@ fn log_and_stop_system(
 
     if !*done && session.total_steps() >= MAX_STEPS {
         *done = true;
-        let g = stats.global();
+        let summary = session.stats_summary();
         println!("\nTraining complete. Checkpoints saved to run directory.");
         println!(
-            "Final stats -- episodes: {}  mean reward: {:.1}  steps/sec: {:.0}",
-            g.episode_count(),
-            g.mean_reward(),
-            g.steps_per_sec()
+            "Final stats -- mean reward: {:.1}  steps/sec: {:.0}",
+            summary.get("episode_reward").copied().unwrap_or(f64::NAN),
+            session.steps_per_sec(),
         );
         std::process::exit(0);
     }
@@ -332,24 +327,28 @@ fn eval_policy_system(
 
 fn eval_log_and_stop_system(
     mut events: MessageReader<EpisodeEndEvent>,
-    stats: Res<GymStats>,
+    mut total_episodes: Local<usize>,
+    mut total_reward: Local<f64>,
+    mut total_length: Local<usize>,
 ) {
     for event in events.read() {
+        *total_episodes += 1;
+        *total_reward += event.total_reward;
+        *total_length += event.episode_steps;
         println!(
             "ep {:>3}  env {}  steps {:>3}  reward {:>6.1}",
-            stats.total_episodes(),
+            *total_episodes,
             event.env_id,
             event.episode_steps,
             event.total_reward,
         );
     }
 
-    if stats.total_episodes() >= 20 {
-        let g = stats.global();
+    if *total_episodes >= 20 {
         println!(
             "\nmean reward: {:.1}  mean length: {:.1}",
-            g.mean_reward(),
-            g.mean_length()
+            *total_reward / *total_episodes as f64,
+            *total_length as f64 / *total_episodes as f64,
         );
         std::process::exit(0);
     }
@@ -493,8 +492,7 @@ fn run_train(render: bool, speed: f32) {
         add_headless_plugins(&mut app);
         app.add_plugins(gym.headless());
     }
-    app.add_plugins(GymStatsPlugin::new())
-        .insert_non_send_resource(session)
+    app.insert_non_send_resource(session)
         .add_systems(
             FixedUpdate,
             (
@@ -543,8 +541,7 @@ fn run_eval(run_path: &str, render: bool, speed: f32) {
         add_headless_plugins(&mut app);
         app.add_plugins(gym.headless());
     }
-    app.add_plugins(GymStatsPlugin::new())
-        .insert_non_send_resource(DqnPolicyResource { policy })
+    app.insert_non_send_resource(DqnPolicyResource { policy })
         .add_systems(
             FixedUpdate,
             (
