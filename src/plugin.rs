@@ -67,7 +67,7 @@ pub enum GymSet {
 /// # Type parameters
 ///
 /// `E` is the `rl-traits` `Environment` implementation. The plugin is generic
-/// over `E` so the full type system is available — observation and action types
+/// over `E` so the full type system is available -- observation and action types
 /// are known at compile time throughout.
 ///
 /// # Environment factory

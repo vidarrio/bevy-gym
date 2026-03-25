@@ -25,7 +25,7 @@ use crate::events::{ActionRequestEvent, EpisodeEndEvent, ExperienceEvent};
 ///
 /// Solution: collect step results into a `Mutex<Vec>` in parallel,
 /// then drain and fire events serially. The serial phase is O(n) over
-/// only the envs that actually stepped — the expensive part ran in parallel.
+/// only the envs that actually stepped -- the expensive part ran in parallel.
 #[allow(clippy::type_complexity)]
 pub fn step_system<E: Environment + Send + Sync + 'static>(
     mut query: Query<(
@@ -71,7 +71,7 @@ pub fn step_system<E: Environment + Send + Sync + 'static>(
 
             stats.record_step(reward);
 
-            // Capture stats now — we can't re-query inside the serial phase
+            // Capture stats now -- we can't re-query inside the serial phase
             // since par_iter_mut already has exclusive access to these components.
             let episode_reward = stats.episode_reward;
             let episode_steps = stats.episode_steps;

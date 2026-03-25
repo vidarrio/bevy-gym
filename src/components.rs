@@ -27,7 +27,7 @@ impl<E: Environment + Send + Sync + 'static> EnvironmentComponent<E> {
 /// Written by whoever is providing the policy (ember-rl, a user system,
 /// or the random exploration system). Consumed and cleared each tick by
 /// `step_system`. If `None`, the step system skips this environment for
-/// this tick — the action has not arrived yet.
+/// this tick -- the action has not arrived yet.
 #[derive(Component)]
 pub struct PendingAction<E: Environment + Send + Sync + 'static> {
     pub action: Option<E::Action>,

@@ -7,7 +7,7 @@ use rl_traits::{EpisodeStatus, Experience};
 ///
 /// Carries the complete `(s, a, r, s', status)` transition so ember-rl
 /// (or any other subscriber) can push it into a replay buffer, update
-/// a trajectory store, or log it — without coupling to Bevy internals.
+/// a trajectory store, or log it -- without coupling to Bevy internals.
 ///
 /// # Usage in ember-rl
 ///
@@ -67,7 +67,7 @@ pub struct EpisodeEndEvent {
 ///
 /// Separating "request action" from "receive action" allows the policy
 /// system to batch multiple requests, run them through a neural network
-/// together, and write results back — a common optimisation in deep RL.
+/// together, and write results back -- a common optimisation in deep RL.
 ///
 /// # Usage
 ///

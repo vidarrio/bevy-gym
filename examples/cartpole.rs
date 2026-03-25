@@ -1,4 +1,4 @@
-//! CartPole-v1 — train or evaluate a DQN agent, with optional live rendering.
+//! CartPole-v1 -- train or evaluate a DQN agent, with optional live rendering.
 //!
 //! Demonstrates the full ecosystem integration:
 //!   rl-traits (env contract) → ember-rl (DQN + TrainingSession) → bevy-gym (parallel ECS loop)
@@ -74,7 +74,7 @@ const LOG_INTERVAL: usize = 5_000;
 // ── CartPole newtype ──────────────────────────────────────────────────────────
 //
 // The orphan rule prevents `impl GymRender for CartPoleEnv` in an example
-// binary — both the trait (bevy-gym) and the type (ember-rl) are foreign.
+// binary -- both the trait (bevy-gym) and the type (ember-rl) are foreign.
 // Wrapping it in a local newtype solves this at zero runtime cost.
 // CartPoleViz is used as the ECS environment type in all modes for uniformity.
 
@@ -129,7 +129,7 @@ impl GymRender for CartPoleViz {
         let y_offset =
             (NUM_ENVS as f32 - 1.0) / 2.0 * ENV_SPACING - env_id as f32 * ENV_SPACING;
 
-        // Track — static grey bar.
+        // Track -- static grey bar.
         ctx.commands.spawn((
             Mesh2d(ctx.meshes.add(Rectangle::new(500.0, 4.0))),
             MeshMaterial2d(
@@ -151,7 +151,7 @@ impl GymRender for CartPoleViz {
             ));
         }
 
-        // Cart — starts blue, shifts toward orange near the boundary.
+        // Cart -- starts blue, shifts toward orange near the boundary.
         let cart_mat = ctx
             .materials
             .add(ColorMaterial::from_color(Color::srgb(0.25, 0.45, 0.85)));
@@ -164,7 +164,7 @@ impl GymRender for CartPoleViz {
             ))
             .id();
 
-        // Pole — starts green, shifts to red as angle approaches failure (12°).
+        // Pole -- starts green, shifts to red as angle approaches failure (12°).
         let pole_mat = ctx
             .materials
             .add(ColorMaterial::from_color(Color::srgb(0.2, 0.8, 0.2)));
@@ -307,7 +307,7 @@ fn log_and_stop_system(
         let g = stats.global();
         println!("\nTraining complete. Checkpoints saved to run directory.");
         println!(
-            "Final stats — episodes: {}  mean reward: {:.1}  steps/sec: {:.0}",
+            "Final stats -- episodes: {}  mean reward: {:.1}  steps/sec: {:.0}",
             g.episode_count(),
             g.mean_reward(),
             g.steps_per_sec()
@@ -388,14 +388,14 @@ fn setup_camera(mut commands: Commands) {
 // ── App helpers ───────────────────────────────────────────────────────────────
 
 /// Adds rendering plugins and systems. Only callable when the `render` feature
-/// is enabled — call sites are gated with `#[cfg(feature = "render")]`.
+/// is enabled -- call sites are gated with `#[cfg(feature = "render")]`.
 #[cfg(feature = "render")]
 fn add_render_plugins(app: &mut App, speed: f32) {
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "CartPole-v1 — bevy-gym".into(),
+                    title: "CartPole-v1 -- bevy-gym".into(),
                     resolution: (800u32, 780u32).into(),
                     ..default()
                 }),
@@ -528,7 +528,7 @@ fn run_eval(run_path: &str, render: bool, speed: f32) {
         device,
     )
     .load(run.best_checkpoint_path().with_extension(""))
-    .expect("failed to load best.mpk — run `cargo run --example cartpole --release` first");
+    .expect("failed to load best.mpk -- run `cargo run --example cartpole --release` first");
 
     println!("Running greedy evaluation ({NUM_ENVS} envs)...\n");
 
