@@ -147,94 +147,26 @@ Add `ResetRequested` to any environment entity to trigger a reset on the next ti
 commands.entity(env_entity).insert(ResetRequested { seed: Some(42) });
 ```
 
-## Plugin builder API
-
-```rust
-BevyGymPlugin::new(factory, num_envs)  // factory: Fn(usize) -> E
-    .with_tick_rate(120.0)             // fixed tick rate in Hz (default: 60)
-    .headless()                        // uncapped, no window
-
-GymStatsPlugin::new()
-    .with_window(200)                  // rolling window size (default: 100)
-```
-
-## Message types
-
-| Message | When fired | Contents |
-|---|---|---|
-| `ActionRequestEvent` | After every step and reset | `env_id`, `entity` |
-| `ExperienceEvent` | After every step | `env_id`, full `Experience` tuple |
-| `EpisodeEndEvent` | When an episode ends | `env_id`, `status`, `total_reward`, `episode_steps`, `extras` |
-
-## System ordering
-
-All RL systems run in `FixedUpdate` in the `GymSet` order:
-
-```
-GymSet::Step → GymSet::AutoReset → GymSet::ManualReset
-```
-
-User policy and logging systems should run **after** `GymSet::ManualReset` to
-ensure they see a fully consistent state for the current tick.
-
 ## Feature flags
 
 | Feature | Description |
 |---|---|
-| *(default)* | Headless ECS only — no window, no rendering |
+| *(default)* | Headless ECS only -- no window, no rendering |
 | `render` | Adds `bevy_render`, `bevy_winit`, `bevy_core_pipeline`, `bevy_asset`, `bevy_sprite`, `bevy_sprite_render` |
 
-## Optional rendering
+## Examples
 
-The `render` feature exposes the `GymRender` trait and `GymRenderPlugin`. Implement
-`GymRender` for your environment to get live 2D visualisation with no changes to the
-rest of your setup:
+| Example | Notes |
+|---|---|
+| [`cartpole`](docs/examples/cartpole.md) | 4 parallel envs, DQN via TrainingSession, optional live rendering |
 
-```rust
-#[cfg(feature = "render")]
-impl GymRender for MyEnv {
-    type Visuals = MyVisuals;  // Component holding spawned mesh Entity handles
+## Plugin docs
 
-    fn setup_visuals(entity: Entity, env_id: usize, ctx: &mut SpawnCtx) {
-        // spawn Mesh2d + MeshMaterial2d children, insert MyVisuals onto entity
-    }
+Detailed reference for each plugin:
 
-    fn sync_visuals(obs: &Self::Observation, visuals: &MyVisuals, transforms: &mut Query<&mut Transform>) {
-        // reposition mesh entities from the latest observation
-    }
-}
-```
-
-Then add `GymRenderPlugin` alongside a camera and `DefaultPlugins`:
-
-```rust
-app.add_plugins(DefaultPlugins)
-   .add_plugins(GymRenderPlugin::<MyEnv>::new())
-   .add_systems(Startup, |mut commands: Commands| { commands.spawn(Camera2d); });
-```
-
-## CartPole example
-
-The included CartPole example demonstrates the full stack: 4 parallel environments,
-a DQN agent from `ember-rl` coordinated via `TrainingSession`, `GymStatsPlugin` for
-live stats, automatic checkpointing, and optional live 2D rendering.
-
-```
-# Train headless at maximum speed
-cargo run --example cartpole --release
-
-# Train with live rendering
-cargo run --example cartpole --features render --release -- --render
-
-# Train with live rendering at half speed
-cargo run --example cartpole --features render --release -- --render --speed 0.5
-
-# Evaluate a saved checkpoint (headless)
-cargo run --example cartpole --release -- --eval runs/bevy_cartpole/v1
-
-# Evaluate with live rendering
-cargo run --example cartpole --features render --release -- --eval runs/bevy_cartpole/v1 --render
-```
+- [BevyGymPlugin](docs/plugins/bevy_gym_plugin.md) -- core plugin, factory, headless/render modes, system ordering
+- [GymRender / GymRenderPlugin](docs/plugins/gym_render.md) -- optional 2D visualisation
+- [GymStatsPlugin / GymStats](docs/plugins/gym_stats.md) -- rolling episode statistics
 
 ## Development
 

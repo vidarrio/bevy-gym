@@ -42,5 +42,5 @@ features = [
 
 
 [dev-dependencies]
-ember-rl = { version = "0.3.2", features = ["envs"] }
+ember-rl = { version = "0.3.3", features = ["envs"] }
 burn = { version = "0.20.1", features = ["ndarray", "autodiff"] }
