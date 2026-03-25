@@ -166,7 +166,6 @@ Detailed reference for each plugin:
 
 - [BevyGymPlugin](docs/plugins/bevy_gym_plugin.md) -- core plugin, factory, headless/render modes, system ordering
 - [GymRender / GymRenderPlugin](docs/plugins/gym_render.md) -- optional 2D visualisation
-- [GymStatsPlugin / GymStats](docs/plugins/gym_stats.md) -- rolling episode statistics
 
 ## Development
 
